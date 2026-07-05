@@ -1,0 +1,337 @@
+<app-page-breadcrumb pageTitle="Users" />
+
+<div class="rounded-2xl border border-gray-200 bg-white pt-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
+  <div class="flex flex-col gap-2 px-5 mb-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
+        Latest Transactions
+      </h3>
+    </div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <button
+        type="button"
+        (click)="openCreateModal()"
+        class="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
+      >
+        <svg class="fill-current" width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 4.25C10.4142 4.25 10.75 4.58579 10.75 5V9.25H15C15.4142 9.25 15.75 9.58579 15.75 10C15.75 10.4142 15.4142 10.75 15 10.75H10.75V15C10.75 15.4142 10.4142 15.75 10 15.75C9.58579 15.75 9.25 15.4142 9.25 15V10.75H5C4.58579 10.75 4.25 10.4142 4.25 10C4.25 9.58579 4.58579 9.25 5 9.25H9.25V5C9.25 4.58579 9.58579 4.25 10 4.25Z" fill=""></path></svg>
+        Nuevo usuario
+      </button>
+      <form>
+        <div class="relative">
+          <button class="absolute -translate-y-1/2 left-4 top-1/2" type="button">
+            <svg class="fill-gray-500 dark:fill-gray-400" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.04199 9.37381C3.04199 5.87712 5.87735 3.04218 9.37533 3.04218C12.8733 3.04218 15.7087 5.87712 15.7087 9.37381C15.7087 12.8705 12.8733 15.7055 9.37533 15.7055C5.87735 15.7055 3.04199 12.8705 3.04199 9.37381ZM9.37533 1.54218C5.04926 1.54218 1.54199 5.04835 1.54199 9.37381C1.54199 13.6993 5.04926 17.2055 9.37533 17.2055C11.2676 17.2055 13.0032 16.5346 14.3572 15.4178L17.1773 18.2381C17.4702 18.531 17.945 18.5311 18.2379 18.2382C18.5308 17.9453 18.5309 17.4704 18.238 17.1775L15.4182 14.3575C16.5367 13.0035 17.2087 11.2671 17.2087 9.37381C17.2087 5.04835 13.7014 1.54218 9.37533 1.54218Z" fill=""></path></svg>
+          </button>
+          <input
+            type="text"
+            placeholder="Search..."
+            [(ngModel)]="searchTerm"
+            (ngModelChange)="onSearchChange()"
+            name="search"
+            class="dark:bg-dark-900 h-[42px] w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-[42px] pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 xl:w-[300px]"
+          />
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="overflow-hidden">
+    <div class="max-w-full px-5 overflow-x-auto sm:px-6">
+      <table class="min-w-full">
+        <thead class="border-gray-100 border-y dark:border-white/[0.05]">
+          <tr>
+            <th class="py-3 font-normal text-gray-500 text-start text-theme-sm dark:text-gray-400">Nombre</th>
+            <th class="px-4 py-3 font-normal text-gray-500 text-start text-theme-sm dark:text-gray-400">Fecha de creacion</th>
+            <th class="px-4 py-3 font-normal text-gray-500 text-start text-theme-sm dark:text-gray-400">Rol</th>
+            <th class="px-4 py-3 font-normal text-gray-500 text-end text-theme-sm dark:text-gray-400">
+              Acciones
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @if (isLoading) {
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+                Loading users...
+              </td>
+            </tr>
+          } @else if (errorMessage) {
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-error-500 text-theme-sm">
+                {{ errorMessage }}
+              </td>
+            </tr>
+          } @else if (currentItems.length === 0) {
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+                No users found.
+              </td>
+            </tr>
+          } @else {
+            @for (user of currentItems; track user._id) {
+              <tr>
+                <td class="px-4 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold uppercase text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                      {{ getInitials(user) }}
+                    </div>
+                    <div>
+                      <span class="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
+                        {{ getDisplayName(user) }}
+                      </span>
+                      <span class="block text-xs text-gray-500 dark:text-gray-500">
+                        {{ user.username }}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-4 text-gray-700 whitespace-nowrap text-theme-sm dark:text-gray-400">
+                  {{ user.createdAt | date:'medium' }}
+                </td>
+                <td class="px-4 py-4 text-gray-700 text-theme-sm dark:text-gray-400">
+                  <app-badge size="sm" [color]="getRoleBadgeColor(user.role)">
+                    {{ formatRole(user.role) }}
+                  </app-badge>
+                </td>
+                <td class="px-4 py-4">
+                  <div class="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      (click)="openEditModal(user)"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-brand-300 hover:text-brand-500 dark:border-gray-800 dark:text-gray-400 dark:hover:border-brand-500"
+                      title="Editar"
+                    >
+                      <svg class="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z" fill=""></path></svg>
+                    </button>
+                    <button
+                      type="button"
+                      (click)="confirmDelete(user)"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:text-error-500 dark:border-gray-800 dark:text-gray-400 dark:hover:border-error-500"
+                      title="Eliminar"
+                    >
+                      <svg class="fill-current" width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.59048 2.5C8.10739 2.5 7.67045 2.78754 7.47975 3.23153L7.14285 4.01668H4.375C3.96079 4.01668 3.625 4.35247 3.625 4.76668C3.625 5.1809 3.96079 5.51668 4.375 5.51668H15.625C16.0392 5.51668 16.375 5.1809 16.375 4.76668C16.375 4.35247 16.0392 4.01668 15.625 4.01668H12.8571L12.5203 3.23153C12.3296 2.78754 11.8926 2.5 11.4095 2.5H8.59048ZM5.62499 7.08335C6.0392 7.08335 6.37499 7.41914 6.37499 7.83335V15.4167C6.37499 15.877 6.74809 16.25 7.20832 16.25H12.7917C13.2519 16.25 13.625 15.877 13.625 15.4167V7.83335C13.625 7.41914 13.9608 7.08335 14.375 7.08335C14.7892 7.08335 15.125 7.41914 15.125 7.83335V15.4167C15.125 16.7053 14.0803 17.75 12.7917 17.75H7.20832C5.91966 17.75 4.87499 16.7053 4.87499 15.4167V7.83335C4.87499 7.41914 5.21078 7.08335 5.62499 7.08335ZM8.33333 8.33335C8.74755 8.33335 9.08333 8.66914 9.08333 9.08335V14.0834C9.08333 14.4976 8.74755 14.8334 8.33333 14.8334C7.91912 14.8334 7.58333 14.4976 7.58333 14.0834V9.08335C7.58333 8.66914 7.91912 8.33335 8.33333 8.33335ZM12.4167 9.08335C12.4167 8.66914 12.0809 8.33335 11.6667 8.33335C11.2525 8.33335 10.9167 8.66914 10.9167 9.08335V14.0834C10.9167 14.4976 11.2525 14.8334 11.6667 14.8334C12.0809 14.8334 12.4167 14.4976 12.4167 14.0834V9.08335Z" fill=""></path></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="px-6 py-4 border-t border-gray-200 dark:border-white/[0.05]">
+    <div class="flex items-center justify-between">
+      <app-button
+        size="sm"
+        variant="outline"
+        (btnClick)="goToPage(currentPage - 1)"
+        [disabled]="currentPage === 1"
+      >
+        <svg class="fill-current" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M2.58301 9.99868C2.58272 10.1909 2.65588 10.3833 2.80249 10.53L7.79915 15.5301C8.09194 15.8231 8.56682 15.8233 8.85981 15.5305C9.15281 15.2377 9.15297 14.7629 8.86018 14.4699L5.14009 10.7472L16.6675 10.7472C17.0817 10.7472 17.4175 10.4114 17.4175 9.99715C17.4175 9.58294 17.0817 9.24715 16.6675 9.24715L5.14554 9.24715L8.86017 5.53016C9.15297 5.23717 9.15282 4.7623 8.85983 4.4695C8.56684 4.1767 8.09197 4.17685 7.79917 4.46984L2.84167 9.43049C2.68321 9.568 2.58301 9.77087 2.58301 9.99715C2.58301 9.99766 2.58301 9.99817 2.58301 9.99868Z" fill=""></path></svg>
+        <span class="hidden sm:inline">Previous</span>
+      </app-button>
+
+      <span class="block text-sm font-medium text-gray-700 dark:text-gray-400 sm:hidden">
+        Page {{ currentPage }} of {{ totalPages }}
+      </span>
+
+      <ul class="hidden items-center gap-0.5 sm:flex">
+        @for (page of [].constructor(totalPages); track $index; let idx = $index) {
+          <li>
+            <button
+              (click)="goToPage(idx + 1)"
+              class="flex h-10 w-10 items-center justify-center rounded-lg text-theme-sm font-medium"
+              [ngClass]="{
+                'bg-brand-500 text-white': currentPage === idx + 1,
+                'text-gray-700 hover:bg-brand-500/[0.08] dark:hover:bg-brand-500 dark:hover:text-white hover:text-brand-500 dark:text-gray-400': currentPage !== idx + 1
+              }"
+            >
+              {{ idx + 1 }}
+            </button>
+          </li>
+        }
+      </ul>
+
+      <app-button
+        (btnClick)="goToPage(currentPage + 1)"
+        size="sm"
+        variant="outline"
+        [disabled]="currentPage === totalPages"
+      >
+        <span class="hidden sm:inline">Next</span>
+        <svg class="fill-current" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M17.4175 9.9986C17.4178 10.1909 17.3446 10.3832 17.198 10.53L12.2013 15.5301C11.9085 15.8231 11.4337 15.8233 11.1407 15.5305C10.8477 15.2377 10.8475 14.7629 11.1403 14.4699L14.8604 10.7472L3.33301 10.7472C2.91879 10.7472 2.58301 10.4114 2.58301 9.99715C2.58301 9.58294 2.91879 9.24715 3.33301 9.24715L14.8549 9.24715L11.1403 5.53016C10.8475 5.23717 10.8477 4.7623 11.1407 4.4695C11.4336 4.1767 11.9085 4.17685 12.2013 4.46984L17.1588 9.43049C17.3173 9.568 17.4175 9.77087 17.4175 9.99715C17.4175 9.99763 17.4175 9.99812 17.4175 9.9986Z" fill=""></path></svg>
+      </app-button>
+    </div>
+  </div>
+</div>
+
+<app-modal
+  [isOpen]="isEditOpen"
+  (close)="closeEditModal()"
+  className="relative flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[820px] flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-900 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] lg:rounded-3xl"
+>
+  <div class="flex min-h-0 w-full flex-col">
+    <div class="shrink-0 px-4 pb-4 pr-14 pt-5 sm:px-6 sm:pt-6 lg:px-11 lg:pt-11">
+      <h4 class="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
+        {{ editingUser ? 'Editar usuario' : 'Nuevo usuario' }}
+      </h4>
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        {{ editingUser ? 'Actualiza los datos del perfil, rol y acceso.' : 'Completa los datos para crear una cuenta.' }}
+      </p>
+    </div>
+
+    <form class="flex min-h-0 flex-1 flex-col" (ngSubmit)="saveUser()">
+      <div class="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 lg:px-11">
+        <div>
+          <h5 class="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
+            Acceso
+          </h5>
+          <div class="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-3">
+            <div>
+              <app-label>Username</app-label>
+              <app-input-field type="text" [value]="editForm.username || ''" (valueChange)="editForm.username = $any($event)" />
+            </div>
+            <div>
+              <app-label>Password</app-label>
+              <app-input-field
+                type="password"
+                [placeholder]="editingUser ? 'Dejar vacio para mantener' : 'Password inicial'"
+                [value]="editForm.password || ''"
+                (valueChange)="editForm.password = $any($event)"
+              />
+            </div>
+            <div>
+              <app-label>Rol</app-label>
+              <select
+                [(ngModel)]="editForm.role"
+                name="role"
+                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+              >
+                @for (role of roles; track role) {
+                  <option [value]="role">{{ formatRole(role) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-7">
+          <h5 class="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
+            Personal Information
+          </h5>
+          <div class="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+            <div>
+              <app-label>First Name</app-label>
+              <app-input-field type="text" [value]="editForm.firstName || ''" (valueChange)="editForm.firstName = $any($event)" />
+            </div>
+            <div>
+              <app-label>Last Name</app-label>
+              <app-input-field type="text" [value]="editForm.lastName || ''" (valueChange)="editForm.lastName = $any($event)" />
+            </div>
+            <div>
+              <app-label>Email Address</app-label>
+              <app-input-field type="text" [value]="editForm.email || ''" (valueChange)="editForm.email = $any($event)" />
+            </div>
+            <div>
+              <app-label>Phone</app-label>
+              <app-input-field type="text" [value]="editForm.phone || ''" (valueChange)="editForm.phone = $any($event)" />
+            </div>
+            <div>
+              <app-label>Location</app-label>
+              <app-input-field type="text" [value]="editForm.location || ''" (valueChange)="editForm.location = $any($event)" />
+            </div>
+            <div>
+              <app-label>Avatar URL</app-label>
+              <app-input-field type="text" [value]="editForm.avatar || ''" (valueChange)="editForm.avatar = $any($event)" />
+            </div>
+            <div class="lg:col-span-2">
+              <app-label>Bio</app-label>
+              <app-input-field type="text" [value]="editForm.bio || ''" (valueChange)="editForm.bio = $any($event)" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-7">
+          <h5 class="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
+            Social Links
+          </h5>
+          <div class="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+            <div>
+              <app-label>Facebook</app-label>
+              <app-input-field type="text" [value]="editForm.social?.facebook || ''" (valueChange)="editForm.social!.facebook = $any($event)" />
+            </div>
+            <div>
+              <app-label>X.com</app-label>
+              <app-input-field type="text" [value]="editForm.social?.x || ''" (valueChange)="editForm.social!.x = $any($event)" />
+            </div>
+            <div>
+              <app-label>Linkedin</app-label>
+              <app-input-field type="text" [value]="editForm.social?.linkedin || ''" (valueChange)="editForm.social!.linkedin = $any($event)" />
+            </div>
+            <div>
+              <app-label>Instagram</app-label>
+              <app-input-field type="text" [value]="editForm.social?.instagram || ''" (valueChange)="editForm.social!.instagram = $any($event)" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-7">
+          <h5 class="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
+            Address
+          </h5>
+          <div class="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+            <div>
+              <app-label>Country</app-label>
+              <app-input-field type="text" [value]="editForm.address?.country || ''" (valueChange)="editForm.address!.country = $any($event)" />
+            </div>
+            <div>
+              <app-label>City/State</app-label>
+              <app-input-field type="text" [value]="editForm.address?.cityState || ''" (valueChange)="editForm.address!.cityState = $any($event)" />
+            </div>
+            <div>
+              <app-label>Postal Code</app-label>
+              <app-input-field type="text" [value]="editForm.address?.postalCode || ''" (valueChange)="editForm.address!.postalCode = $any($event)" />
+            </div>
+            <div>
+              <app-label>TAX ID</app-label>
+              <app-input-field type="text" [value]="editForm.address?.taxId || ''" (valueChange)="editForm.address!.taxId = $any($event)" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shrink-0 border-t border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-6 lg:px-11">
+        @if (formErrorMessage) {
+          <p class="mb-4 rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            {{ formErrorMessage }}
+          </p>
+        }
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <app-button size="sm" variant="outline" (btnClick)="closeEditModal()">Cerrar</app-button>
+        <app-button size="sm" [disabled]="isSaving" (btnClick)="saveUser()">
+          {{ isSaving ? 'Guardando...' : (editingUser ? 'Guardar cambios' : 'Crear usuario') }}
+        </app-button>
+        </div>
+      </div>
+    </form>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="!!userToDelete" (close)="cancelDelete()" className="max-w-[480px] m-4">
+  <div class="relative w-full rounded-3xl bg-white p-6 dark:bg-gray-900">
+    <h4 class="mb-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+      Eliminar usuario
+    </h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      Esta accion eliminara a {{ userToDelete ? getDisplayName(userToDelete) : '' }}.
+    </p>
+    <div class="mt-6 flex justify-end gap-3">
+      <app-button size="sm" variant="outline" (btnClick)="cancelDelete()">Cancelar</app-button>
+      <app-button size="sm" [disabled]="isDeleting" (btnClick)="deleteUser()">
+        {{ isDeleting ? 'Eliminando...' : 'Eliminar' }}
+      </app-button>
+    </div>
+  </div>
+</app-modal>

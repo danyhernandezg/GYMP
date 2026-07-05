@@ -1,0 +1,295 @@
+<app-page-breadcrumb pageTitle="Agenda" />
+
+<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white pt-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
+  <div class="flex flex-col gap-4 px-6 mb-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
+        Agenda
+      </h3>
+    </div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <form>
+        <div class="relative">
+          <button class="absolute -translate-y-1/2 left-4 top-1/2" type="button">
+            <svg class="fill-gray-500 dark:fill-gray-400" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.04199 9.37381C3.04199 5.87712 5.87735 3.04218 9.37533 3.04218C12.8733 3.04218 15.7087 5.87712 15.7087 9.37381C15.7087 12.8705 12.8733 15.7055 9.37533 15.7055C5.87735 15.7055 3.04199 12.8705 3.04199 9.37381ZM9.37533 1.54218C5.04926 1.54218 1.54199 5.04835 1.54199 9.37381C1.54199 13.6993 5.04926 17.2055 9.37533 17.2055C11.2676 17.2055 13.0032 16.5346 14.3572 15.4178L17.1773 18.2381C17.4702 18.531 17.945 18.5311 18.2379 18.2382C18.5308 17.9453 18.5309 17.4704 18.238 17.1775L15.4182 14.3575C16.5367 13.0035 17.2087 11.2671 17.2087 9.37381C17.2087 5.04835 13.7014 1.54218 9.37533 1.54218Z" fill=""></path></svg>
+          </button>
+          <input
+            type="text"
+            placeholder="Search..."
+            [(ngModel)]="searchTerm"
+            (ngModelChange)="onSearchChange()"
+            name="search"
+            class="dark:bg-dark-900 h-[42px] w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-[42px] pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 xl:w-[300px]"
+          />
+        </div>
+      </form>
+      <button
+        type="button"
+        (click)="loadAgenda()"
+        class="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="max-w-full overflow-x-auto">
+    <table class="min-w-full">
+      <thead class="px-6 py-3.5 border-t border-gray-100 border-y bg-gray-50 dark:border-white/[0.05] dark:bg-gray-900">
+        <tr>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Clase</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Alumno</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Coach</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Fecha</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Hora</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-start">Google</th>
+          <th class="px-6 py-3 font-medium text-gray-500 sm:px-6 text-theme-xs dark:text-gray-400 text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+        @if (isLoading) {
+          <tr>
+            <td colspan="7" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+              Loading agenda...
+            </td>
+          </tr>
+        } @else if (errorMessage) {
+          <tr>
+            <td colspan="7" class="px-6 py-8 text-center text-error-500 text-theme-sm">
+              {{ errorMessage }}
+            </td>
+          </tr>
+        } @else if (currentItems.length === 0) {
+          <tr>
+            <td colspan="7" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+              No scheduled events found.
+            </td>
+          </tr>
+        } @else {
+          @for (event of currentItems; track event._id) {
+            <tr>
+              <td class="px-4 sm:px-6 py-3.5">
+                <span class="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
+                  {{ event.title }}
+                </span>
+                <span class="text-xs text-gray-500 dark:text-gray-500">
+                  {{ event.calendar }}
+                </span>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold uppercase text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                    {{ getInitials(event.student) }}
+                  </div>
+                  <div>
+                    <span class="mb-0.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
+                      {{ getDisplayName(event.student) }}
+                    </span>
+                    <span class="text-gray-500 text-theme-sm dark:text-gray-400">
+                      {{ event.student.email || event.student.username }}
+                    </span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold uppercase text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                    {{ getInitials(event.coach) }}
+                  </div>
+                  <div>
+                    <span class="mb-0.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
+                      {{ getDisplayName(event.coach) }}
+                    </span>
+                    <span class="text-gray-500 text-theme-sm dark:text-gray-400">
+                      {{ event.coach.email || event.coach.username }}
+                    </span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5 whitespace-nowrap">
+                <p class="text-gray-700 text-theme-sm dark:text-gray-400">
+                  {{ formatDate(event.start) }}
+                </p>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5 whitespace-nowrap">
+                <p class="text-gray-700 text-theme-sm dark:text-gray-400">
+                  {{ formatTime(event.start) }} - {{ formatTime(event.end) }}
+                </p>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5">
+                <app-badge variant="light" [color]="getGoogleBadgeColor(event)" size="sm">
+                  {{ getGoogleStatus(event) }}
+                </app-badge>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5">
+                <div class="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    (click)="openEditModal(event)"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-brand-300 hover:text-brand-500 dark:border-gray-800 dark:text-gray-400 dark:hover:border-brand-500"
+                    title="Editar"
+                  >
+                    <svg class="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z" fill=""></path></svg>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="confirmDelete(event)"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:text-error-500 dark:border-gray-800 dark:text-gray-400 dark:hover:border-error-500"
+                    title="Eliminar"
+                  >
+                    <svg class="fill-current" width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.59048 2.5C8.10739 2.5 7.67045 2.78754 7.47975 3.23153L7.14285 4.01668H4.375C3.96079 4.01668 3.625 4.35247 3.625 4.76668C3.625 5.1809 3.96079 5.51668 4.375 5.51668H15.625C16.0392 5.51668 16.375 5.1809 16.375 4.76668C16.375 4.35247 16.0392 4.01668 15.625 4.01668H12.8571L12.5203 3.23153C12.3296 2.78754 11.8926 2.5 11.4095 2.5H8.59048ZM5.62499 7.08335C6.0392 7.08335 6.37499 7.41914 6.37499 7.83335V15.4167C6.37499 15.877 6.74809 16.25 7.20832 16.25H12.7917C13.2519 16.25 13.625 15.877 13.625 15.4167V7.83335C13.625 7.41914 13.9608 7.08335 14.375 7.08335C14.7892 7.08335 15.125 7.41914 15.125 7.83335V15.4167C15.125 16.7053 14.0803 17.75 12.7917 17.75H7.20832C5.91966 17.75 4.87499 16.7053 4.87499 15.4167V7.83335C4.87499 7.41914 5.21078 7.08335 5.62499 7.08335ZM8.33333 8.33335C8.74755 8.33335 9.08333 8.66914 9.08333 9.08335V14.0834C9.08333 14.4976 8.74755 14.8334 8.33333 14.8334C7.91912 14.8334 7.58333 14.4976 7.58333 14.0834V9.08335C7.58333 8.66914 7.91912 8.33335 8.33333 8.33335ZM12.4167 9.08335C12.4167 8.66914 12.0809 8.33335 11.6667 8.33335C11.2525 8.33335 10.9167 8.66914 10.9167 9.08335V14.0834C10.9167 14.4976 11.2525 14.8334 11.6667 14.8334C12.0809 14.8334 12.4167 14.4976 12.4167 14.0834V9.08335Z" fill=""></path></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="px-6 py-4 border-t border-gray-200 dark:border-white/[0.05]">
+    <div class="flex items-center justify-between">
+      <app-button
+        size="sm"
+        variant="outline"
+        (btnClick)="goToPage(currentPage - 1)"
+        [disabled]="currentPage === 1"
+      >
+        <span>Previous</span>
+      </app-button>
+
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-400">
+        Page {{ currentPage }} of {{ totalPages }}
+      </span>
+
+      <app-button
+        size="sm"
+        variant="outline"
+        (btnClick)="goToPage(currentPage + 1)"
+        [disabled]="currentPage === totalPages"
+      >
+        <span>Next</span>
+      </app-button>
+    </div>
+  </div>
+</div>
+
+<app-modal [isOpen]="isEditOpen" (close)="closeEditModal()" className="max-w-[700px] m-4">
+  <div class="relative w-full rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+    <h4 class="mb-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+      Editar agenda
+    </h4>
+    <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
+      Actualiza coach, fecha y hora. Cada evento dura 60 minutos.
+    </p>
+
+    <form class="space-y-5" (ngSubmit)="saveEvent()">
+      <div>
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+          Coach
+        </label>
+        <select
+          [(ngModel)]="editForm.coachId"
+          name="coachId"
+          [disabled]="!canChangeCoach()"
+          class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+        >
+          <option value="">Selecciona coach</option>
+          @for (coach of coaches; track coach._id) {
+            <option [value]="coach._id">{{ getDisplayName(coach) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+            Fecha
+          </label>
+          <input
+            type="date"
+            [(ngModel)]="editForm.startDate"
+            name="startDate"
+            [min]="minScheduleDate()"
+            class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+            Hora
+          </label>
+          <select
+            [(ngModel)]="editForm.startTime"
+            name="startTime"
+            class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          >
+            <option value="">Selecciona hora</option>
+            @for (hour of visibleHourOptions(); track hour) {
+              <option [value]="hour" [disabled]="isHourUnavailable(hour)">
+                {{ hour }}{{ isHourUnavailable(hour) ? ' - No disponible' : '' }}
+              </option>
+            }
+          </select>
+          @if (editForm.startTime) {
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Finaliza a las {{ eventEndLabel() }}.
+            </p>
+          }
+        </div>
+      </div>
+
+      @if (formErrorMessage) {
+        <p class="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+          {{ formErrorMessage }}
+        </p>
+      }
+
+      <div class="flex justify-end gap-3 pt-2">
+        <button
+          type="button"
+          (click)="closeEditModal()"
+          class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="isSaving"
+          class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
+        >
+          {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="!!eventToDelete" (close)="cancelDelete()" className="max-w-[480px] m-4">
+  <div class="relative w-full rounded-3xl bg-white p-6 dark:bg-gray-900">
+    <h4 class="mb-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+      Eliminar evento
+    </h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      Esta accion eliminara {{ eventToDelete?.title }} de Mongo y de Google Calendar si estaba sincronizado.
+    </p>
+    <div class="mt-6 flex justify-end gap-3">
+      <button
+        type="button"
+        (click)="cancelDelete()"
+        class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        (click)="deleteEvent()"
+        [disabled]="isDeleting"
+        class="rounded-lg bg-error-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-error-600 disabled:opacity-60"
+      >
+        {{ isDeleting ? 'Eliminando...' : 'Eliminar' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
