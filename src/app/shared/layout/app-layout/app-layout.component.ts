@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { SidebarService } from '../../services/sidebar.service';
 import { CommonModule } from '@angular/common';
 import { AppSidebarComponent } from '../app-sidebar/app-sidebar.component';
@@ -26,6 +26,8 @@ export class AppLayoutComponent {
   readonly isHovered$;
   readonly isMobileOpen$;
   showStudentPricingModal = false;
+  showPwaInstallBar = false;
+  deferredInstallPrompt: any = null;
 
   constructor(
     public sidebarService: SidebarService,
@@ -44,10 +46,44 @@ export class AppLayoutComponent {
       this.showStudentPricingModal = true;
       sessionStorage.removeItem('show_student_pricing_modal');
     }
+
+    this.showPwaInstallBar = this.shouldShowPwaInstallBar();
+  }
+
+  @HostListener('window:beforeinstallprompt', ['$event'])
+  onBeforeInstallPrompt(event: Event) {
+    event.preventDefault();
+    this.deferredInstallPrompt = event;
+    this.showPwaInstallBar = this.shouldShowPwaInstallBar();
   }
 
   closeStudentPricingModal() {
     this.showStudentPricingModal = false;
+  }
+
+  async installPwa() {
+    if (!this.deferredInstallPrompt) {
+      this.dismissPwaInstallBar();
+      return;
+    }
+
+    this.deferredInstallPrompt.prompt();
+    await this.deferredInstallPrompt.userChoice;
+    this.deferredInstallPrompt = null;
+    this.dismissPwaInstallBar();
+  }
+
+  dismissPwaInstallBar() {
+    localStorage.setItem('pwa_install_bar_dismissed', 'true');
+    this.showPwaInstallBar = false;
+  }
+
+  private shouldShowPwaInstallBar() {
+    const dismissed = localStorage.getItem('pwa_install_bar_dismissed') === 'true';
+    const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+    return !dismissed && !standalone;
   }
 
   get containerClasses() {
