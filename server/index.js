@@ -190,6 +190,60 @@ calendarEventSchema.index({ student: 1, start: 1, end: 1 });
 
 const CalendarEvent = mongoose.model('CalendarEvent', calendarEventSchema);
 
+const classSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 140
+    },
+    type: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: 600,
+      default: ''
+    },
+    coach: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    capacity: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 500
+    },
+    enrolledStudents: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    status: {
+      type: String,
+      enum: ['active', 'archived'],
+      default: 'active'
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    }
+  },
+  { timestamps: true }
+);
+
+classSchema.index({ status: 1, createdAt: -1 });
+classSchema.index({ coach: 1, status: 1 });
+classSchema.index({ enrolledStudents: 1 });
+
+const ClassOffering = mongoose.model('ClassOffering', classSchema);
+
 function sanitizeUser(user) {
   return {
     _id: user._id,
@@ -230,6 +284,37 @@ function sanitizeCalendarEvent(event) {
     google: event.google,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt
+  };
+}
+
+function sanitizeClassOffering(classOffering, currentUserId) {
+  const enrolledStudents = Array.isArray(classOffering.enrolledStudents)
+    ? classOffering.enrolledStudents
+    : [];
+  const enrolledCount = enrolledStudents.length;
+  const currentUserIdString = currentUserId ? currentUserId.toString() : '';
+  const isEnrolled = Boolean(currentUserIdString) && enrolledStudents.some((student) => {
+    const studentId = student && typeof student === 'object' ? student._id : student;
+    return studentId?.toString() === currentUserIdString;
+  });
+
+  return {
+    _id: classOffering._id,
+    name: classOffering.name,
+    type: classOffering.type,
+    description: classOffering.description,
+    coach: classOffering.coach && typeof classOffering.coach === 'object'
+      ? sanitizeUser(classOffering.coach)
+      : classOffering.coach,
+    capacity: classOffering.capacity,
+    enrolledCount,
+    availableSpots: Math.max(classOffering.capacity - enrolledCount, 0),
+    isFull: enrolledCount >= classOffering.capacity,
+    isEnrolled,
+    status: classOffering.status,
+    createdBy: classOffering.createdBy,
+    createdAt: classOffering.createdAt,
+    updatedAt: classOffering.updatedAt
   };
 }
 
@@ -807,6 +892,180 @@ app.delete('/api/calendar-events/:id', ensureDatabase, authenticate, async (req,
     await event.deleteOne();
 
     return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/classes', ensureDatabase, authenticate, async (req, res, next) => {
+  try {
+    const classes = await ClassOffering.find()
+      .populate(['coach', 'enrolledStudents'])
+      .sort({ createdAt: -1 });
+
+    return res.json(classes.map((classOffering) => sanitizeClassOffering(classOffering, req.user.sub)));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/classes', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const type = String(req.body.type || '').trim();
+    const description = String(req.body.description || '').trim();
+    const capacity = Number(req.body.capacity);
+    const status = req.body.status === 'archived' ? 'archived' : 'active';
+    let coachId = req.body.coachId;
+
+    if (!name || !type) {
+      return res.status(400).json({ message: 'Name and type are required.' });
+    }
+
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      return res.status(400).json({ message: 'Capacity must be at least 1.' });
+    }
+
+    if (req.user.role === 'coach') {
+      coachId = req.user.sub;
+    }
+
+    if (!coachId) {
+      return res.status(400).json({ message: 'Coach is required.' });
+    }
+
+    const coach = await User.findOne({ _id: coachId, role: 'coach' });
+    if (!coach) {
+      return res.status(400).json({ message: 'Selected coach was not found.' });
+    }
+
+    const classOffering = await ClassOffering.create({
+      name,
+      type,
+      description,
+      capacity,
+      status,
+      coach: coach._id,
+      createdBy: req.user.sub
+    });
+
+    await classOffering.populate(['coach', 'enrolledStudents']);
+    return res.status(201).json(sanitizeClassOffering(classOffering, req.user.sub));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.patch('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+  try {
+    const classOffering = await ClassOffering.findById(req.params.id);
+
+    if (!classOffering) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+
+    const canEdit = req.user.role === 'administrador' || classOffering.coach?.toString() === req.user.sub;
+    if (!canEdit) {
+      return res.status(403).json({ message: 'You do not have permission to edit this class.' });
+    }
+
+    if (req.body.name !== undefined) classOffering.name = String(req.body.name).trim();
+    if (req.body.type !== undefined) classOffering.type = String(req.body.type).trim();
+    if (req.body.description !== undefined) classOffering.description = String(req.body.description).trim();
+    if (req.body.status !== undefined) classOffering.status = req.body.status === 'archived' ? 'archived' : 'active';
+
+    if (req.body.capacity !== undefined) {
+      const capacity = Number(req.body.capacity);
+      if (!Number.isInteger(capacity) || capacity < 1) {
+        return res.status(400).json({ message: 'Capacity must be at least 1.' });
+      }
+
+      if (capacity < classOffering.enrolledStudents.length) {
+        return res.status(400).json({ message: 'Capacity cannot be lower than current enrolled students.' });
+      }
+
+      classOffering.capacity = capacity;
+    }
+
+    if (req.body.coachId !== undefined && req.user.role === 'administrador') {
+      const coach = await User.findOne({ _id: req.body.coachId, role: 'coach' });
+      if (!coach) {
+        return res.status(400).json({ message: 'Selected coach was not found.' });
+      }
+      classOffering.coach = coach._id;
+    }
+
+    await classOffering.save();
+    await classOffering.populate(['coach', 'enrolledStudents']);
+    return res.json(sanitizeClassOffering(classOffering, req.user.sub));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+  try {
+    const classOffering = await ClassOffering.findById(req.params.id);
+
+    if (!classOffering) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+
+    const canDelete = req.user.role === 'administrador' || classOffering.coach?.toString() === req.user.sub;
+    if (!canDelete) {
+      return res.status(403).json({ message: 'You do not have permission to delete this class.' });
+    }
+
+    await classOffering.deleteOne();
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('alumno'), async (req, res, next) => {
+  try {
+    const classOffering = await ClassOffering.findOne({ _id: req.params.id, status: 'active' });
+
+    if (!classOffering) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+
+    const alreadyEnrolled = classOffering.enrolledStudents.some((studentId) => studentId.toString() === req.user.sub);
+    if (alreadyEnrolled) {
+      await classOffering.populate(['coach', 'enrolledStudents']);
+      return res.json(sanitizeClassOffering(classOffering, req.user.sub));
+    }
+
+    if (classOffering.enrolledStudents.length >= classOffering.capacity) {
+      return res.status(409).json({ message: 'This class has no available spots.' });
+    }
+
+    classOffering.enrolledStudents.push(req.user.sub);
+    await classOffering.save();
+    await classOffering.populate(['coach', 'enrolledStudents']);
+
+    return res.json(sanitizeClassOffering(classOffering, req.user.sub));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('alumno'), async (req, res, next) => {
+  try {
+    const classOffering = await ClassOffering.findById(req.params.id);
+
+    if (!classOffering) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+
+    classOffering.enrolledStudents = classOffering.enrolledStudents.filter(
+      (studentId) => studentId.toString() !== req.user.sub
+    );
+    await classOffering.save();
+    await classOffering.populate(['coach', 'enrolledStudents']);
+
+    return res.json(sanitizeClassOffering(classOffering, req.user.sub));
   } catch (error) {
     return next(error);
   }

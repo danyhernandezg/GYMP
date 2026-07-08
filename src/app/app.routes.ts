@@ -22,6 +22,7 @@ import { authGuard } from './shared/services/auth.guard';
 import { roleGuard, routeAccessGuard } from './shared/services/role.guard';
 import { UsersComponent } from './pages/users/users.component';
 import { AgendaComponent } from './pages/agenda/agenda.component';
+import { ClassesComponent } from './pages/classes/classes.component';
 
 export const routes: Routes = [
   {
@@ -41,6 +42,11 @@ export const routes: Routes = [
         path:'calendar',
         component:CalenderComponent,
         title:'Angular Calender | Gestion de eventos - Angular Admin Dashboard Template'
+      },
+      {
+        path:'classes',
+        component:ClassesComponent,
+        title:'Clases | Gestion de eventos - Angular Admin Dashboard Template'
       },
       {
         path:'agenda',

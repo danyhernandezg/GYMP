@@ -25,7 +25,7 @@ export const routeAccessGuard: CanActivateFn = (route) => {
     return router.createUrlTree(['/signin']);
   }
 
-  if (userRole === 'alumno' && !['calendar', 'profile'].includes(path)) {
+  if (userRole === 'alumno' && !['calendar', 'classes', 'profile'].includes(path)) {
     return router.createUrlTree(['/calendar']);
   }
 
