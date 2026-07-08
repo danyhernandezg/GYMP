@@ -6,7 +6,7 @@ import { ButtonComponent } from '../../shared/components/ui/button/button.compon
 import { PageBreadcrumbComponent } from '../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { ModalComponent } from '../../shared/components/ui/modal/modal.component';
 import { AuthApiService } from '../../shared/services/auth-api.service';
-import { ClassOffering, ClassesApiService } from '../../shared/services/classes-api.service';
+import { ClassAvailabilitySlot, ClassOffering, ClassesApiService } from '../../shared/services/classes-api.service';
 import { AppUser, UsersApiService } from '../../shared/services/users-api.service';
 
 @Component({
@@ -25,6 +25,7 @@ import { AppUser, UsersApiService } from '../../shared/services/users-api.servic
 export class ClassesComponent implements OnInit {
   classes: ClassOffering[] = [];
   coaches: AppUser[] = [];
+  students: AppUser[] = [];
   searchTerm = '';
   currentPage = 1;
   itemsPerPage = 8;
@@ -32,13 +33,26 @@ export class ClassesComponent implements OnInit {
   isSaving = false;
   isDeleting = false;
   isEnrollmentSaving = false;
+  isAvailabilityLoading = false;
   isFormOpen = false;
+  isEnrollmentOpen = false;
+  isRosterOpen = false;
   errorMessage = '';
   formErrorMessage = '';
+  enrollmentErrorMessage = '';
   enrollmentMessage = '';
   classToDelete: ClassOffering | null = null;
+  classToEnroll: ClassOffering | null = null;
+  classRoster: ClassOffering | null = null;
   editingClass: ClassOffering | null = null;
   form = this.getEmptyForm();
+  enrollmentForm = {
+    date: '',
+    time: '',
+    studentId: ''
+  };
+  availabilitySlots: ClassAvailabilitySlot[] = [];
+  private readonly scheduleTimeZone = 'America/El_Salvador';
 
   constructor(
     private readonly classesApi: ClassesApiService,
@@ -49,6 +63,7 @@ export class ClassesComponent implements OnInit {
   ngOnInit() {
     this.loadClasses();
     this.loadCoaches();
+    this.loadStudents();
   }
 
   loadClasses() {
@@ -76,6 +91,18 @@ export class ClassesComponent implements OnInit {
     this.usersApi.listCoaches().subscribe({
       next: (coaches) => {
         this.coaches = coaches;
+      }
+    });
+  }
+
+  loadStudents() {
+    if (!this.canManageClasses()) {
+      return;
+    }
+
+    this.usersApi.listStudents().subscribe({
+      next: (students) => {
+        this.students = students;
       }
     });
   }
@@ -228,19 +255,18 @@ export class ClassesComponent implements OnInit {
       return;
     }
 
+    if (!classOffering.isEnrolled) {
+      this.openEnrollmentModal(classOffering);
+      return;
+    }
+
     this.isEnrollmentSaving = true;
     this.enrollmentMessage = '';
 
-    const request = classOffering.isEnrolled
-      ? this.classesApi.unenroll(classOffering._id)
-      : this.classesApi.enroll(classOffering._id);
-
-    request.subscribe({
+    this.classesApi.unenroll(classOffering._id).subscribe({
       next: (updatedClass) => {
         this.classes = this.classes.map((item) => item._id === updatedClass._id ? updatedClass : item);
-        this.enrollmentMessage = updatedClass.isEnrolled
-          ? 'Inscripcion realizada correctamente.'
-          : 'Inscripcion cancelada correctamente.';
+        this.enrollmentMessage = 'Inscripcion cancelada correctamente.';
         this.isEnrollmentSaving = false;
       },
       error: (error) => {
@@ -250,9 +276,164 @@ export class ClassesComponent implements OnInit {
     });
   }
 
+  openEnrollmentModal(classOffering: ClassOffering) {
+    this.classToEnroll = classOffering;
+    this.enrollmentErrorMessage = '';
+    this.enrollmentMessage = '';
+    this.enrollmentForm = {
+      date: this.getElSalvadorToday(),
+      time: '',
+      studentId: ''
+    };
+    this.isEnrollmentOpen = true;
+    if (this.isStudent()) {
+      this.loadAvailability();
+    }
+  }
+
+  closeEnrollmentModal() {
+    this.isEnrollmentOpen = false;
+    this.classToEnroll = null;
+    this.enrollmentErrorMessage = '';
+    this.availabilitySlots = [];
+  }
+
+  openRosterModal(classOffering: ClassOffering) {
+    this.classRoster = classOffering;
+    this.isRosterOpen = true;
+  }
+
+  closeRosterModal() {
+    this.isRosterOpen = false;
+    this.classRoster = null;
+  }
+
+  openAdminEnrollmentModal(classOffering: ClassOffering) {
+    this.classRoster = classOffering;
+    this.classToEnroll = classOffering;
+    this.enrollmentErrorMessage = '';
+    this.enrollmentMessage = '';
+    this.enrollmentForm = {
+      date: this.getElSalvadorToday(),
+      time: '',
+      studentId: this.availableStudentsForClass(classOffering)[0]?._id || ''
+    };
+    this.isEnrollmentOpen = true;
+
+    if (this.enrollmentForm.studentId) {
+      this.loadAvailability();
+    }
+  }
+
+  loadAvailability() {
+    if (!this.classToEnroll || !this.enrollmentForm.date) {
+      return;
+    }
+
+    this.isAvailabilityLoading = true;
+    this.enrollmentErrorMessage = '';
+    this.enrollmentForm.time = '';
+
+    const studentId = this.canManageClasses() ? this.enrollmentForm.studentId : undefined;
+
+    if (this.canManageClasses() && !studentId) {
+      this.availabilitySlots = [];
+      this.isAvailabilityLoading = false;
+      return;
+    }
+
+    this.classesApi.getAvailability(this.classToEnroll._id, this.enrollmentForm.date, studentId).subscribe({
+      next: (availability) => {
+        this.availabilitySlots = availability.slots;
+        const firstAvailableSlot = this.availabilitySlots.find((slot) => slot.available);
+        this.enrollmentForm.time = firstAvailableSlot?.time || '';
+        this.isAvailabilityLoading = false;
+      },
+      error: (error) => {
+        this.enrollmentErrorMessage = error?.error?.message || 'No se pudieron cargar los horarios.';
+        this.availabilitySlots = [];
+        this.isAvailabilityLoading = false;
+      }
+    });
+  }
+
+  confirmEnrollment() {
+    if (!this.classToEnroll || this.isEnrollmentSaving) {
+      return;
+    }
+
+    if (!this.enrollmentForm.date || !this.enrollmentForm.time) {
+      this.enrollmentErrorMessage = 'Selecciona fecha y hora para inscribirte.';
+      return;
+    }
+
+    if (this.canManageClasses() && !this.enrollmentForm.studentId) {
+      this.enrollmentErrorMessage = 'Selecciona un alumno.';
+      return;
+    }
+
+    const selectedSlot = this.availabilitySlots.find((slot) => slot.time === this.enrollmentForm.time);
+    if (!selectedSlot?.available) {
+      this.enrollmentErrorMessage = 'Selecciona una hora disponible.';
+      return;
+    }
+
+    this.isEnrollmentSaving = true;
+    this.enrollmentErrorMessage = '';
+
+    this.classesApi.enroll(this.classToEnroll._id, {
+      start: this.buildEnrollmentStartDateTime(),
+      studentId: this.canManageClasses() ? this.enrollmentForm.studentId : undefined
+    }).subscribe({
+      next: (updatedClass) => {
+        this.updateClassInState(updatedClass);
+        this.classRoster = this.classRoster?._id === updatedClass._id ? updatedClass : this.classRoster;
+        this.enrollmentMessage = 'Inscripcion realizada correctamente y agregada al calendario.';
+        this.isEnrollmentSaving = false;
+        this.closeEnrollmentModal();
+      },
+      error: (error) => {
+        this.enrollmentErrorMessage = error?.error?.message || 'No se pudo completar la inscripcion.';
+        this.isEnrollmentSaving = false;
+        this.loadAvailability();
+      }
+    });
+  }
+
+  removeStudentFromClass(classOffering: ClassOffering, student: AppUser) {
+    if (this.isEnrollmentSaving) {
+      return;
+    }
+
+    this.isEnrollmentSaving = true;
+    this.enrollmentMessage = '';
+    this.errorMessage = '';
+
+    this.classesApi.unenroll(classOffering._id, student._id).subscribe({
+      next: (updatedClass) => {
+        this.updateClassInState(updatedClass);
+        this.classRoster = this.classRoster?._id === updatedClass._id ? updatedClass : this.classRoster;
+        this.enrollmentMessage = 'Alumno removido de la clase correctamente.';
+        this.isEnrollmentSaving = false;
+      },
+      error: (error) => {
+        this.errorMessage = error?.error?.message || 'No se pudo remover el alumno.';
+        this.isEnrollmentSaving = false;
+      }
+    });
+  }
+
+  availableStudentsForClass(classOffering: ClassOffering) {
+    const enrolledIds = new Set((classOffering.enrolledStudents || []).map((student) => student._id));
+    return this.students.filter((student) => !enrolledIds.has(student._id));
+  }
+
+  updateClassInState(updatedClass: ClassOffering) {
+    this.classes = this.classes.map((item) => item._id === updatedClass._id ? updatedClass : item);
+  }
+
   canManageClasses() {
-    const role = this.auth.getUser()?.role;
-    return role === 'administrador' || role === 'coach';
+    return this.auth.getUser()?.role === 'administrador';
   }
 
   isStudent() {
@@ -260,8 +441,7 @@ export class ClassesComponent implements OnInit {
   }
 
   canEditClass(classOffering: ClassOffering) {
-    const user = this.auth.getUser();
-    return user?.role === 'administrador' || user?.role === 'coach';
+    return this.auth.getUser()?.role === 'administrador';
   }
 
   getDisplayName(user?: AppUser) {
@@ -299,6 +479,59 @@ export class ClassesComponent implements OnInit {
       month: 'short',
       day: '2-digit'
     }).format(new Date(value));
+  }
+
+  minScheduleDate() {
+    return this.getElSalvadorToday();
+  }
+
+  buildEnrollmentStartDateTime() {
+    return `${this.enrollmentForm.date}T${this.enrollmentForm.time}:00-06:00`;
+  }
+
+  enrollmentEndLabel() {
+    if (!this.enrollmentForm.date || !this.enrollmentForm.time) {
+      return '';
+    }
+
+    const start = new Date(this.buildEnrollmentStartDateTime());
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    return `${String(this.getElSalvadorDateParts(end).hour).padStart(2, '0')}:00`;
+  }
+
+  getSlotLabel(slot: ClassAvailabilitySlot) {
+    const labels: Record<ClassAvailabilitySlot['reason'], string> = {
+      past: 'Hora pasada',
+      full: 'Sin cupos',
+      student_busy: 'Ya tienes evento',
+      coach_busy: 'Coach ocupado',
+      '': ''
+    };
+
+    return `${slot.time}${slot.available ? '' : ' - ' + labels[slot.reason]}`;
+  }
+
+  getElSalvadorToday() {
+    return this.getElSalvadorDateParts(new Date()).date;
+  }
+
+  getElSalvadorDateParts(date: Date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: this.scheduleTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+    const value = (type: string) => parts.find((part) => part.type === type)?.value || '00';
+
+    return {
+      date: `${value('year')}-${value('month')}-${value('day')}`,
+      hour: Number(value('hour')),
+      minute: Number(value('minute'))
+    };
   }
 
   private getEmptyForm() {

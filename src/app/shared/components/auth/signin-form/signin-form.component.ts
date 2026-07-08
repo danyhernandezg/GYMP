@@ -49,7 +49,11 @@ export class SigninFormComponent {
     this.isSubmitting = true;
 
     this.auth.login(this.username, this.password).subscribe({
-      next: () => {
+      next: (response) => {
+        if (response.user.role === 'alumno') {
+          sessionStorage.setItem('show_student_pricing_modal', 'true');
+        }
+
         this.router.navigate(['/calendar']);
       },
       error: (error) => {

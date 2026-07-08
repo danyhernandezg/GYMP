@@ -13,9 +13,21 @@ export interface ClassOffering {
   availableSpots: number;
   isFull: boolean;
   isEnrolled: boolean;
+  enrolledStudents: AppUser[];
   status: 'active' | 'archived';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ClassAvailabilitySlot {
+  time: string;
+  available: boolean;
+  reason: 'past' | 'full' | 'student_busy' | 'coach_busy' | '';
+}
+
+export interface ClassAvailability {
+  date: string;
+  slots: ClassAvailabilitySlot[];
 }
 
 export interface SaveClassOffering {
@@ -51,11 +63,19 @@ export class ClassesApiService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
-  enroll(id: string) {
-    return this.http.post<ClassOffering>(`${this.apiUrl}/${id}/enroll`, {});
+  getAvailability(id: string, date: string, studentId?: string) {
+    return this.http.get<ClassAvailability>(`${this.apiUrl}/${id}/availability`, {
+      params: studentId ? { date, studentId } : { date }
+    });
   }
 
-  unenroll(id: string) {
-    return this.http.delete<ClassOffering>(`${this.apiUrl}/${id}/enroll`);
+  enroll(id: string, schedule: { start: string; studentId?: string }) {
+    return this.http.post<ClassOffering>(`${this.apiUrl}/${id}/enroll`, schedule);
+  }
+
+  unenroll(id: string, studentId?: string) {
+    return this.http.delete<ClassOffering>(`${this.apiUrl}/${id}/enroll`, {
+      params: studentId ? { studentId } : {}
+    });
   }
 }

@@ -10,6 +10,7 @@ export interface CalendarClassEvent {
   calendar: 'Danger' | 'Success' | 'Primary' | 'Warning';
   student: AppUser;
   coach: AppUser;
+  classOffering?: string;
   google: {
     studentEventId: string;
     coachEventId: string;

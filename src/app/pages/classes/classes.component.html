@@ -58,7 +58,11 @@
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Clase</th>
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Tipo</th>
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Coach</th>
+          <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Horario</th>
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Cupos</th>
+          @if (canManageClasses()) {
+            <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Inscritos</th>
+          }
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Estado</th>
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-start">Creada</th>
           <th class="px-6 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 text-end">Acciones</th>
@@ -67,19 +71,19 @@
       <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
         @if (isLoading) {
           <tr>
-            <td colspan="7" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+            <td [attr.colspan]="canManageClasses() ? 9 : 8" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
               Cargando clases...
             </td>
           </tr>
         } @else if (errorMessage) {
           <tr>
-            <td colspan="7" class="px-6 py-8 text-center text-error-500 text-theme-sm">
+            <td [attr.colspan]="canManageClasses() ? 9 : 8" class="px-6 py-8 text-center text-error-500 text-theme-sm">
               {{ errorMessage }}
             </td>
           </tr>
         } @else if (currentItems.length === 0) {
           <tr>
-            <td colspan="7" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
+            <td [attr.colspan]="canManageClasses() ? 9 : 8" class="px-6 py-8 text-center text-gray-500 text-theme-sm dark:text-gray-400">
               No hay clases disponibles.
             </td>
           </tr>
@@ -114,12 +118,31 @@
               </td>
               <td class="px-4 sm:px-6 py-3.5">
                 <span class="block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
+                  {{ classOffering.isEnrolled ? 'Agendada' : 'Disponible al inscribirse' }}
+                </span>
+                <span class="text-xs text-gray-500 dark:text-gray-500">
+                  Duracion 60 minutos
+                </span>
+              </td>
+              <td class="px-4 sm:px-6 py-3.5">
+                <span class="block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
                   {{ getSpotsLabel(classOffering) }}
                 </span>
                 <span class="text-xs text-gray-500 dark:text-gray-500">
                   {{ classOffering.availableSpots }} disponibles
                 </span>
               </td>
+              @if (canManageClasses()) {
+                <td class="px-4 sm:px-6 py-3.5">
+                  <button
+                    type="button"
+                    (click)="openRosterModal(classOffering)"
+                    class="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-500 dark:border-gray-800 dark:text-gray-400 dark:hover:border-brand-500"
+                  >
+                    Ver {{ classOffering.enrolledCount }}
+                  </button>
+                </td>
+              }
               <td class="px-4 sm:px-6 py-3.5">
                 <app-badge variant="light" [color]="getAvailabilityBadgeColor(classOffering)" size="sm">
                   {{ getAvailabilityLabel(classOffering) }}
@@ -137,11 +160,20 @@
                       [disabled]="isEnrollmentSaving || (!classOffering.isEnrolled && (classOffering.isFull || classOffering.status !== 'active'))"
                       class="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:border-brand-500"
                     >
-                      {{ classOffering.isEnrolled ? 'Salir' : 'Inscribirme' }}
+                      {{ classOffering.isEnrolled ? 'Salir' : 'Elegir horario' }}
                     </button>
                   }
 
                   @if (canManageClasses() && canEditClass(classOffering)) {
+                    <button
+                      type="button"
+                      (click)="openAdminEnrollmentModal(classOffering)"
+                      [disabled]="classOffering.isFull || classOffering.status !== 'active'"
+                      class="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:border-brand-500"
+                      title="Agregar alumno"
+                    >
+                      Agregar
+                    </button>
                     <button
                       type="button"
                       (click)="openEditModal(classOffering)"
@@ -287,6 +319,163 @@
           class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
         >
           {{ isSaving ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="isRosterOpen" (close)="closeRosterModal()" className="max-w-[760px] m-4">
+  <div class="relative w-full rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h4 class="mb-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+          Inscritos
+        </h4>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          {{ classRoster?.name }} · {{ classRoster?.enrolledCount || 0 }}/{{ classRoster?.capacity || 0 }} cupos
+        </p>
+      </div>
+      <button
+        type="button"
+        (click)="classRoster && openAdminEnrollmentModal(classRoster)"
+        [disabled]="!classRoster || classRoster.isFull || classRoster.status !== 'active'"
+        class="inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Agregar alumno
+      </button>
+    </div>
+
+    <div class="max-h-[52vh] overflow-y-auto">
+      @if (!classRoster?.enrolledStudents?.length) {
+        <div class="rounded-lg border border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          No hay alumnos inscritos.
+        </div>
+      } @else {
+        <div class="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+          @for (student of classRoster?.enrolledStudents || []; track student._id) {
+            <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold uppercase text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                  {{ getInitials(student) }}
+                </div>
+                <div>
+                  <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ getDisplayName(student) }}
+                  </span>
+                  <span class="text-xs text-gray-500 dark:text-gray-500">
+                    {{ student.email || student.username }}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="classRoster && removeStudentFromClass(classRoster, student)"
+                [disabled]="isEnrollmentSaving"
+                class="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 transition hover:border-error-300 hover:text-error-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:border-error-500"
+              >
+                Quitar
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="isEnrollmentOpen" (close)="closeEnrollmentModal()" className="max-w-[620px] m-4">
+  <div class="relative w-full rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+    <h4 class="mb-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+      Elegir horario
+    </h4>
+    <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
+      {{ classToEnroll?.name }} con {{ getDisplayName(classToEnroll?.coach) }}. Cada clase dura 60 minutos.
+    </p>
+
+    <form class="space-y-5" (ngSubmit)="confirmEnrollment()">
+      @if (canManageClasses()) {
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+            Alumno
+          </label>
+          <select
+            [(ngModel)]="enrollmentForm.studentId"
+            (ngModelChange)="loadAvailability()"
+            name="enrollmentStudent"
+            class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          >
+            <option value="">Selecciona alumno</option>
+            @for (student of availableStudentsForClass(classToEnroll!); track student._id) {
+              <option [value]="student._id">{{ getDisplayName(student) }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div>
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+          Fecha
+        </label>
+        <input
+          type="date"
+          [(ngModel)]="enrollmentForm.date"
+          (ngModelChange)="loadAvailability()"
+          name="enrollmentDate"
+          [min]="minScheduleDate()"
+          class="dark:bg-dark-900 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+        />
+      </div>
+
+      <div>
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+          Hora disponible
+        </label>
+        <select
+          [(ngModel)]="enrollmentForm.time"
+          name="enrollmentTime"
+          [disabled]="isAvailabilityLoading"
+          class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+        >
+          <option value="">{{ isAvailabilityLoading ? 'Cargando horarios...' : 'Selecciona hora' }}</option>
+          @for (slot of availabilitySlots; track slot.time) {
+            <option [value]="slot.time" [disabled]="!slot.available">
+              {{ getSlotLabel(slot) }}
+            </option>
+          }
+        </select>
+        @if (!isAvailabilityLoading && availabilitySlots.length > 0 && !enrollmentForm.time) {
+          <p class="mt-2 text-xs text-error-500">
+            No hay horarios disponibles para esta fecha.
+          </p>
+        }
+        @if (enrollmentForm.time) {
+          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Finaliza a las {{ enrollmentEndLabel() }} y se agregara al calendario.
+          </p>
+        }
+      </div>
+
+      @if (enrollmentErrorMessage) {
+        <p class="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+          {{ enrollmentErrorMessage }}
+        </p>
+      }
+
+      <div class="flex justify-end gap-3 pt-2">
+        <button
+          type="button"
+          (click)="closeEnrollmentModal()"
+          class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="isEnrollmentSaving || isAvailabilityLoading || !enrollmentForm.time"
+          class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
+        >
+          {{ isEnrollmentSaving ? 'Inscribiendo...' : 'Confirmar inscripcion' }}
         </button>
       </div>
     </form>

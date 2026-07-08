@@ -174,6 +174,10 @@ const calendarEventSchema = new mongoose.Schema(
       ref: 'User',
       required: true
     },
+    classOffering: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ClassOffering'
+    },
     google: {
       studentEventId: { type: String, default: '' },
       coachEventId: { type: String, default: '' },
@@ -187,6 +191,7 @@ const calendarEventSchema = new mongoose.Schema(
 
 calendarEventSchema.index({ coach: 1, start: 1, end: 1 });
 calendarEventSchema.index({ student: 1, start: 1, end: 1 });
+calendarEventSchema.index({ classOffering: 1, start: 1 });
 
 const CalendarEvent = mongoose.model('CalendarEvent', calendarEventSchema);
 
@@ -281,6 +286,7 @@ function sanitizeCalendarEvent(event) {
     student,
     coach,
     createdBy: event.createdBy,
+    classOffering: event.classOffering,
     google: event.google,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt
@@ -311,6 +317,9 @@ function sanitizeClassOffering(classOffering, currentUserId) {
     availableSpots: Math.max(classOffering.capacity - enrolledCount, 0),
     isFull: enrolledCount >= classOffering.capacity,
     isEnrolled,
+    enrolledStudents: enrolledStudents
+      .filter((student) => student && typeof student === 'object')
+      .map(sanitizeUser),
     status: classOffering.status,
     createdBy: classOffering.createdBy,
     createdAt: classOffering.createdAt,
@@ -320,6 +329,24 @@ function sanitizeClassOffering(classOffering, currentUserId) {
 
 function getOneHourEnd(start) {
   return new Date(start.getTime() + 60 * 60 * 1000);
+}
+
+function buildElSalvadorDateTime(date, hour) {
+  return new Date(`${date}T${hour}:00-06:00`);
+}
+
+function parseClassStart(value) {
+  const start = new Date(value);
+
+  if (Number.isNaN(start.getTime())) {
+    return null;
+  }
+
+  return start;
+}
+
+function isSameDateTime(left, right) {
+  return new Date(left).getTime() === new Date(right).getTime();
 }
 
 async function findCalendarConflict({ start, end, coachId, studentId, excludeEventId }) {
@@ -909,7 +936,90 @@ app.get('/api/classes', ensureDatabase, authenticate, async (req, res, next) => 
   }
 });
 
-app.post('/api/classes', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+app.get('/api/classes/:id/availability', ensureDatabase, authenticate, async (req, res, next) => {
+  try {
+    const date = String(req.query.date || '').trim();
+    const requestedStudentId = req.user.role === 'administrador' && req.query.studentId
+      ? req.query.studentId
+      : req.user.sub;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ message: 'Date is required in YYYY-MM-DD format.' });
+    }
+
+    const student = await User.findOne({ _id: requestedStudentId, role: 'alumno' });
+
+    if (!student) {
+      return res.status(400).json({ message: 'Selected student was not found.' });
+    }
+
+    const classOffering = await ClassOffering.findById(req.params.id);
+
+    if (!classOffering || classOffering.status !== 'active') {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+
+    const isEnrolled = classOffering.enrolledStudents.some((studentId) => studentId.toString() === student._id.toString());
+    const classIsFull = classOffering.enrolledStudents.length >= classOffering.capacity && !isEnrolled;
+    const dayStart = buildElSalvadorDateTime(date, '00:00');
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const events = await CalendarEvent.find({
+      start: { $lt: dayEnd },
+      end: { $gt: dayStart },
+      $or: [
+        { coach: classOffering.coach },
+        { student: student._id }
+      ]
+    });
+    const now = new Date();
+
+    const slots = Array.from({ length: 24 }, (_, hour) => {
+      const time = `${String(hour).padStart(2, '0')}:00`;
+      const start = buildElSalvadorDateTime(date, time);
+      const end = getOneHourEnd(start);
+
+      if (start <= now) {
+        return { time, available: false, reason: 'past' };
+      }
+
+      if (classIsFull) {
+        return { time, available: false, reason: 'full' };
+      }
+
+      const studentConflict = events.some((event) =>
+        event.student?.toString() === student._id.toString() &&
+        event.start < end &&
+        event.end > start
+      );
+
+      if (studentConflict) {
+        return { time, available: false, reason: 'student_busy' };
+      }
+
+      const coachConflict = events.some((event) => {
+        const sameClass = event.classOffering?.toString() === classOffering._id.toString();
+        const sameStart = isSameDateTime(event.start, start);
+
+        return event.coach?.toString() === classOffering.coach?.toString() &&
+          event.start < end &&
+          event.end > start &&
+          !(sameClass && sameStart);
+      });
+
+      if (coachConflict) {
+        return { time, available: false, reason: 'coach_busy' };
+      }
+
+      return { time, available: true, reason: '' };
+    });
+
+    return res.json({ date, slots });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/classes', ensureDatabase, authenticate, requireRole('administrador'), async (req, res, next) => {
   try {
     const name = String(req.body.name || '').trim();
     const type = String(req.body.type || '').trim();
@@ -956,7 +1066,7 @@ app.post('/api/classes', ensureDatabase, authenticate, requireRole('administrado
   }
 });
 
-app.patch('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+app.patch('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador'), async (req, res, next) => {
   try {
     const classOffering = await ClassOffering.findById(req.params.id);
 
@@ -1003,7 +1113,7 @@ app.patch('/api/classes/:id', ensureDatabase, authenticate, requireRole('adminis
   }
 });
 
-app.delete('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador', 'coach'), async (req, res, next) => {
+app.delete('/api/classes/:id', ensureDatabase, authenticate, requireRole('administrador'), async (req, res, next) => {
   try {
     const classOffering = await ClassOffering.findById(req.params.id);
 
@@ -1023,26 +1133,91 @@ app.delete('/api/classes/:id', ensureDatabase, authenticate, requireRole('admini
   }
 });
 
-app.post('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('alumno'), async (req, res, next) => {
+app.post('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('administrador', 'alumno'), async (req, res, next) => {
   try {
-    const classOffering = await ClassOffering.findOne({ _id: req.params.id, status: 'active' });
+    const classOffering = await ClassOffering.findOne({ _id: req.params.id, status: 'active' }).populate('coach');
 
     if (!classOffering) {
       return res.status(404).json({ message: 'Class not found.' });
     }
 
-    const alreadyEnrolled = classOffering.enrolledStudents.some((studentId) => studentId.toString() === req.user.sub);
-    if (alreadyEnrolled) {
+    const studentId = req.user.role === 'administrador' && req.body.studentId
+      ? req.body.studentId
+      : req.user.sub;
+    const student = await User.findOne({ _id: studentId, role: 'alumno' });
+
+    if (!student) {
+      return res.status(400).json({ message: 'Selected student was not found.' });
+    }
+
+    const start = parseClassStart(req.body.start);
+
+    if (!start) {
+      return res.status(400).json({ message: 'Start date and time are required.' });
+    }
+
+    if (start <= new Date()) {
+      return res.status(400).json({ message: 'Start time must be in the future.' });
+    }
+
+    const end = getOneHourEnd(start);
+    const existingEvent = await CalendarEvent.findOne({
+      classOffering: classOffering._id,
+      student: student._id
+    });
+
+    const alreadyEnrolled = classOffering.enrolledStudents.some((enrolledStudentId) => enrolledStudentId.toString() === student._id.toString());
+    if (alreadyEnrolled && existingEvent) {
       await classOffering.populate(['coach', 'enrolledStudents']);
       return res.json(sanitizeClassOffering(classOffering, req.user.sub));
     }
 
-    if (classOffering.enrolledStudents.length >= classOffering.capacity) {
+    if (!alreadyEnrolled && classOffering.enrolledStudents.length >= classOffering.capacity) {
       return res.status(409).json({ message: 'This class has no available spots.' });
     }
 
-    classOffering.enrolledStudents.push(req.user.sub);
+    const studentConflict = await CalendarEvent.findOne({
+      student: student._id,
+      start: { $lt: end },
+      end: { $gt: start }
+    });
+
+    if (studentConflict) {
+      return res.status(409).json({ message: 'You already have an event scheduled at that time.' });
+    }
+
+    const coachConflict = await CalendarEvent.findOne({
+      coach: classOffering.coach._id,
+      start: { $lt: end },
+      end: { $gt: start },
+      $or: [
+        { classOffering: { $exists: false } },
+        { classOffering: { $ne: classOffering._id } },
+        { start: { $ne: start } }
+      ]
+    });
+
+    if (coachConflict) {
+      return res.status(409).json({ message: 'The coach is not available at that time.' });
+    }
+
+    if (!alreadyEnrolled) {
+      classOffering.enrolledStudents.push(student._id);
+    }
     await classOffering.save();
+
+    const event = await CalendarEvent.create({
+      title: classOffering.name,
+      start,
+      end,
+      calendar: 'Primary',
+      student: student._id,
+      coach: classOffering.coach._id,
+      createdBy: req.user.sub,
+      classOffering: classOffering._id
+    });
+
+    await syncCalendarEventToGoogle(event);
     await classOffering.populate(['coach', 'enrolledStudents']);
 
     return res.json(sanitizeClassOffering(classOffering, req.user.sub));
@@ -1051,16 +1226,36 @@ app.post('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('a
   }
 });
 
-app.delete('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('alumno'), async (req, res, next) => {
+app.delete('/api/classes/:id/enroll', ensureDatabase, authenticate, requireRole('administrador', 'alumno'), async (req, res, next) => {
   try {
-    const classOffering = await ClassOffering.findById(req.params.id);
+    const classOffering = await ClassOffering.findById(req.params.id).populate('coach');
 
     if (!classOffering) {
       return res.status(404).json({ message: 'Class not found.' });
     }
 
+    const studentId = req.user.role === 'administrador' && req.query.studentId
+      ? req.query.studentId
+      : req.user.sub;
+    const student = await User.findOne({ _id: studentId, role: 'alumno' });
+
+    if (!student) {
+      return res.status(400).json({ message: 'Selected student was not found.' });
+    }
+
+    const events = await CalendarEvent.find({
+      classOffering: classOffering._id,
+      student: student._id
+    }).populate(['student', 'coach']);
+
+    for (const event of events) {
+      await deleteGoogleEventForUser(event.student, event.google?.studentEventId);
+      await deleteGoogleEventForUser(event.coach, event.google?.coachEventId);
+      await event.deleteOne();
+    }
+
     classOffering.enrolledStudents = classOffering.enrolledStudents.filter(
-      (studentId) => studentId.toString() !== req.user.sub
+      (enrolledStudentId) => enrolledStudentId.toString() !== student._id.toString()
     );
     await classOffering.save();
     await classOffering.populate(['coach', 'enrolledStudents']);
